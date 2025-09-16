@@ -1,6 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Line, useGLTF  } from '@react-three/drei'
-import { useMemo , useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
+import * as THREE from 'three'
 import modelData from './model.json'
 import './App.css'
 
@@ -33,7 +34,7 @@ function Car({ box }) {
   )
 }
 
-export function Shape({ box, isSelected, onSelect, moving, rotating, carsOnBoxes }) {
+export function Shape({ box, isSelected, onSelect, moving, rotating, carsOnBoxes, onDoubleClick }) {
   const meshRef = useRef()
 
   // Determine color based on selection and car
@@ -55,8 +56,16 @@ export function Shape({ box, isSelected, onSelect, moving, rotating, carsOnBoxes
     [box.id, onSelect]
   )
 
+  const handleDoubleClick = useCallback(
+    (e) => {
+      e.stopPropagation()
+      onDoubleClick(meshRef.current)
+    },
+    [onDoubleClick]
+  )
+
   return (
-    <mesh ref={meshRef} position={[box.x, box.y, box.z]} onClick={handleClick}>
+    <mesh ref={meshRef} position={[box.x, box.y, box.z]} onClick={handleClick} onDoubleClick={handleDoubleClick}>
       <boxGeometry args={[box.width, box.height, box.depth]} />
       <meshStandardMaterial color={color} transparent opacity={0.8} />
     </mesh>
@@ -137,6 +146,21 @@ export default function App() {
   const [rotating, setRotating] = useState({})
   const [carsOnBoxes, setCarsOnBoxes] = useState({}) // keys = box IDs, values = true/false
 
+  const controlsRef = useRef()
+
+  const handleZoomToBox = (mesh) => {
+    if (!controlsRef.current || !mesh) return
+
+    const boxPos = mesh.position
+    const offset = 5
+    const target = new THREE.Vector3().copy(boxPos)
+    const cameraPos = new THREE.Vector3(boxPos.x, boxPos.y + offset, boxPos.z + offset * 2)
+
+    controlsRef.current.target.copy(target)
+    controlsRef.current.object.position.copy(cameraPos)
+    controlsRef.current.update()
+  }
+
   const toggleCar = (boxId) => {
     setCarsOnBoxes(prev => ({
       ...prev,
@@ -200,7 +224,7 @@ export default function App() {
         <Canvas camera={{ position: [45, 20, 40], fov: 75 }}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
-          <OrbitControls target={[45, 10, 20]} enablePan={true} />
+          <OrbitControls ref={controlsRef} target={[45, 10, 20]} enablePan={true} />
           {items.map(item =>
             item.type === 'box' ? (
               <Shape
@@ -212,6 +236,7 @@ export default function App() {
                 rotating={rotating}
                 toggleCar={toggleCar}
                 carsOnBoxes={carsOnBoxes}
+                onDoubleClick={handleZoomToBox}
               />
             ) : item.type === 'lines' ? (
               <LineSegments key={item.id} segments={item.segments} color={item.color} />
