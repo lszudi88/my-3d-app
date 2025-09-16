@@ -152,7 +152,7 @@ export default function App() {
     if (!controlsRef.current || !mesh) return
 
     const boxPos = mesh.position
-    const offset = 5
+    const offset = 2
     const target = new THREE.Vector3().copy(boxPos)
     const cameraPos = new THREE.Vector3(boxPos.x, boxPos.y + offset, boxPos.z + offset * 2)
 
