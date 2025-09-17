@@ -1,6 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Line, useGLTF  } from '@react-three/drei'
-import { useState, useRef, useCallback } from 'react'
+import { OrbitControls, Line, useGLTF, Html } from '@react-three/drei'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import * as THREE from 'three'
 import modelData from './model.json'
 import './App.css'
@@ -34,16 +34,15 @@ function Car({ box }) {
   )
 }
 
-export function Shape({ box, isSelected, onSelect, moving, rotating, carsOnBoxes, onDoubleClick }) {
+export function Shape({ box, isSelected, onSelect, moving, rotating, carsOnBoxes, onDoubleClick, labelBoxId }) {
   const meshRef = useRef()
 
   // Determine color based on selection and car
   let color = box.color || 'limegreen'
-
   if (carsOnBoxes[box.id]) color = 'orange'   // car present → orange
   if (isSelected) color = 'yellow'           // selected → yellow overrides orange/limegreen
 
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     updateTransform(meshRef, moving[box.id], 'move', delta)
     updateTransform(meshRef, rotating[box.id], 'rotate', delta)
   })
@@ -59,15 +58,34 @@ export function Shape({ box, isSelected, onSelect, moving, rotating, carsOnBoxes
   const handleDoubleClick = useCallback(
     (e) => {
       e.stopPropagation()
-      onDoubleClick(meshRef.current)
+      onDoubleClick(meshRef.current, box.id)
     },
-    [onDoubleClick]
+    [onDoubleClick, box.id]
   )
+
+  const message = carsOnBoxes[box.id] ? "Car Present" : null
 
   return (
     <mesh ref={meshRef} position={[box.x, box.y, box.z]} onClick={handleClick} onDoubleClick={handleDoubleClick}>
       <boxGeometry args={[box.width, box.height, box.depth]} />
       <meshStandardMaterial color={color} transparent opacity={0.8} />
+      {/* 🔹 Floating label */}
+      {labelBoxId === box.id && (
+        <Html distanceFactor={10} position={[0, box.height / 2 + 1, 0]}>
+          <div style={{
+            background: 'white',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            fontSize: '12px',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+            textAlign: 'center',
+            lineHeight: '1.2'
+          }}>
+            <div><strong>{box.id}</strong></div>
+            {message && <div>{message}</div>}
+          </div>
+        </Html>
+      )}
     </mesh>
   )
 }
@@ -98,7 +116,7 @@ function Circle({ center, radius, segments, color }) {
   return <Line points={points} color={color || 'lightgray'} lineWidth={1} />
 }
 
-// 🔹 Expand grid definitions into boxes
+// Expand grid definitions into boxes
 function expandGrid(floor) {
   const boxes = []
   for (let r = 0; r < floor.rows; r++) {
@@ -126,7 +144,7 @@ function expandGrid(floor) {
 }
 
 export default function App() {
-  // 🔹 Build expanded items list once
+  // Build expanded items list once
   const [items] = useState(() => {
     const expanded = []
     modelData.forEach(item => {
@@ -145,10 +163,20 @@ export default function App() {
   const [moving, setMoving] = useState({})
   const [rotating, setRotating] = useState({})
   const [carsOnBoxes, setCarsOnBoxes] = useState({}) // keys = box IDs, values = true/false
+  const [labelBoxId, setLabelBoxId] = useState(null)
 
   const controlsRef = useRef()
 
-  const handleZoomToBox = (mesh) => {
+  // Hide label when camera moves
+  useEffect(() => {
+    const controls = controlsRef.current
+    if (!controls) return
+    const clearLabel = () => setLabelBoxId(null)
+    controls.addEventListener('change', clearLabel)
+    return () => controls.removeEventListener('change', clearLabel)
+  }, [])
+
+  const handleZoomToBox = (mesh, boxId) => {
     if (!controlsRef.current || !mesh) return
 
     const boxPos = mesh.position
@@ -159,6 +187,9 @@ export default function App() {
     controlsRef.current.target.copy(target)
     controlsRef.current.object.position.copy(cameraPos)
     controlsRef.current.update()
+
+    // Toggle label if same box is clicked again
+    setLabelBoxId((prev) => (prev === boxId ? null : boxId))
   }
 
   const toggleCar = (boxId) => {
@@ -237,6 +268,7 @@ export default function App() {
                 toggleCar={toggleCar}
                 carsOnBoxes={carsOnBoxes}
                 onDoubleClick={handleZoomToBox}
+                labelBoxId={labelBoxId}
               />
             ) : item.type === 'lines' ? (
               <LineSegments key={item.id} segments={item.segments} color={item.color} />
