@@ -34,13 +34,25 @@ function Car({ box }) {
   )
 }
 
-export function Shape({ box, isSelected, onSelect, moving, rotating, carsOnBoxes, onDoubleClick, labelBoxId }) {
+export function Shape({ box, isSelected, onSelect, moving, rotating, carsOnBoxes, errorBoxes, onDoubleClick, labelBoxId }) {
   const meshRef = useRef()
+  const [blink, setBlink] = useState(false)
+
+  useEffect(() => {
+    const isError = errorBoxes[box.id];
+    if (!isError) return
+    const interval = setInterval(() => setBlink(prev => !prev), 666)
+    return () => clearInterval(interval)
+  }, [errorBoxes, box.id])
 
   // Determine color based on selection and car
   let color = box.color || 'limegreen'
-  if (carsOnBoxes[box.id]) color = 'orange'   // car present → orange
-  if (isSelected) color = 'yellow'           // selected → yellow overrides orange/limegreen
+  if (carsOnBoxes[box.id]) color = 'lightgray'
+  if (isSelected) color = 'yellow'
+
+  if (errorBoxes[box.id]) {
+    color = blink ? 'firebrick' : color
+  }
 
   useFrame((_, delta) => {
     updateTransform(meshRef, moving[box.id], 'move', delta)
@@ -164,6 +176,7 @@ export default function App() {
   const [rotating, setRotating] = useState({})
   const [carsOnBoxes, setCarsOnBoxes] = useState({}) // keys = box IDs, values = true/false
   const [labelBoxId, setLabelBoxId] = useState(null)
+  const [errorBoxes, setErrorBoxes] = useState({})
 
   const controlsRef = useRef()
 
@@ -196,6 +209,13 @@ export default function App() {
     setCarsOnBoxes(prev => ({
       ...prev,
       [boxId]: !prev[boxId] // flip true/false
+    }))
+  }
+
+  const toggleError = (boxId) => {
+    setErrorBoxes(prev => ({
+      ...prev,
+      [boxId]: !prev[boxId] // toggle true/false
     }))
   }
 
@@ -267,6 +287,7 @@ export default function App() {
                 rotating={rotating}
                 toggleCar={toggleCar}
                 carsOnBoxes={carsOnBoxes}
+                errorBoxes={errorBoxes}
                 onDoubleClick={handleZoomToBox}
                 labelBoxId={labelBoxId}
               />
@@ -319,6 +340,17 @@ export default function App() {
           }}
         >
           {carsOnBoxes[selectedBoxId] ? 'Remove Car' : 'Add Car'}
+        </button>
+        <button
+          onClick={() => {
+            if (!selectedBoxId) {
+              alert('No pallet selected!')
+              return
+            }
+            toggleError(selectedBoxId)
+          }}
+        >
+          {errorBoxes[selectedBoxId] ? 'Remove Error' : 'Add Error'}
         </button>
       </div>
     </div>
